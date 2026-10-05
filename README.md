@@ -1,6 +1,7 @@
 # foxclick
 
-A focus-independent autoclicker for a single game window on Wayland.
+A focus-independent autoclicker for a single XWayland game. For reliable
+clicking while the game is unfocused, run the game inside Gamescope.
 
 Ordinary Linux autoclickers (xclicker, xdotool loops, ydotool) inject input at a
 global level: the click lands in *whatever* window is focused. On Wayland you
@@ -8,21 +9,21 @@ can't tell them "only click that one background window", so the moment you switc
 to another window the clicks follow you there — you can't touch anything else on
 the machine while the autoclicker runs.
 
-`foxclick` sends its clicks straight to **one specific X window, addressed by
-id** (`xdotool --window`). The events go to that window and nowhere else,
-regardless of what has focus. Regular clicking does not move the pointer;
+`foxclick` sends synthetic clicks to **one specific X window, addressed by id**
+(`xdotool --window`). Whether an unfocused game accepts those events depends on
+the game and XWayland setup. Gamescope's nested X display keeps the game as the
+input target when you switch to another desktop window, and is the recommended
+setup for the alt-tab use case. Direct XWayland mode is best-effort and may stop
+working when the game loses focus. Regular clicking does not move the pointer;
 position-targeted clicking moves it to the saved location before each click.
-Whether pointer movement changes focus depends on the compositor's focus policy.
-Park the game on one monitor, work on the other.
 
 It was written for repetitive hold-to-work actions in
 [Foxhole](https://store.steampowered.com/app/505460/Foxhole/) (building, digging),
 but nothing in it is Foxhole-specific — point `WINDOW_CLASS` at any XWayland game.
 
-> **Earlier versions** ran the game inside [gamescope](https://github.com/ValveSoftware/gamescope)
-> and injected into gamescope's private nested X display. That's no longer needed
-> — and dropping it removes gamescope's compositing/frame-pacing overhead. If you
-> were using the gamescope launch option, remove it (see [Set up the game](#set-up-the-game)).
+> **Recommended:** run Foxhole through [Gamescope](https://github.com/ValveSoftware/gamescope)
+> so clicks continue while the game is unfocused. Without Gamescope, behavior
+> depends on whether the game accepts synthetic input while unfocused.
 
 ## How it works
 
@@ -38,7 +39,9 @@ but nothing in it is Foxhole-specific — point `WINDOW_CLASS` at any XWayland g
 ```
 
 `xdotool click --window <id>` delivers a synthetic `ButtonPress`/`ButtonRelease`
-via `XSendEvent` to that exact window and can't reach any other window. Regular
+via `XSendEvent` to the selected window. This selects the event destination; it
+does not guarantee that an unfocused game will accept the event. Gamescope's
+nested display is recommended when clicks must continue after alt-tab. Regular
 clicking doesn't move your pointer; position-targeted clicking moves it to the
 saved location in the game window before each click.
 
@@ -47,14 +50,17 @@ largest matching window so it ignores the game's tiny helper/IME/tooltip windows
 
 ## Requirements
 
-- A Wayland session with XWayland (Hyprland, KWin, Sway, …). The game must run as
-  a normal window — **not** through gamescope.
+- A Linux desktop session with access to the game's X display. Gamescope is
+  recommended for reliable background clicking; direct XWayland use is
+  best-effort when the game is unfocused.
+- [`gamescope`](https://github.com/ValveSoftware/gamescope) for the recommended
+  setup.
 - [`xdotool`](https://archlinux.org/packages/extra/x86_64/xdotool/)
 - `bash`, `awk`, coreutils, `setsid` (util-linux) — all standard.
 - Optional: `notify-send` (libnotify) for desktop notifications.
 
 ```sh
-sudo pacman -S xdotool          # Arch / CachyOS / Omarchy
+sudo pacman -S gamescope xdotool # Arch / CachyOS / Omarchy
 ```
 
 ## Install
@@ -101,12 +107,15 @@ commands from a terminal on your other monitor.
 
 ## Set up the game
 
-Just run the game normally. In Steam → game → *Properties* → *Launch Options*,
-make sure there is **no `gamescope … -- %command%` wrapper** — plain `%command%`
-(or whatever else you need, minus gamescope).
+In Steam → game → *Properties* → *Launch Options*, run the game through
+Gamescope, for example:
 
-Set the game to **borderless / windowed fullscreen**, not exclusive fullscreen,
-so it stays a normal compositor window you can tab away from.
+```
+gamescope -f -- %command%
+```
+
+Use the Gamescope options appropriate for your display and setup. If you choose
+to run without Gamescope, clicks may not be accepted while the game is unfocused.
 
 ## Usage
 
@@ -154,16 +163,14 @@ Changes take effect on the next `start`/`toggle`/`click` — there's no daemon.
 ## Troubleshooting
 
 - **`foxclick log`** prints what the last run did, including raw `xdotool` errors.
-- **"game window not found"**: the game isn't running, it's running through
-  gamescope (remove the launch option), or its window class isn't
-  `steam_app_505460` — run `foxclick calibrate`, or set `WINDOW_CLASS` /
-  `WINDOW_NAME` to what `xdotool search --name .` shows.
-- **Clicks pause while another *XWayland* window (e.g. Discord) is focused**:
-  known limitation — XWayland routes the synthetic pointer event by its emulated
-  pointer position, which sits inside the focused X client instead of the game.
-  Clicks resume as soon as you focus a native Wayland window (browser, terminal)
-  or the game. Native Wayland windows don't cause this. Since Discord
-  push-to-talk is global you rarely need Discord focused anyway.
+- **"game window not found"**: the game isn't running, its window isn't exposed
+  on an accessible X display, or its window class isn't `steam_app_505460` — run
+  `foxclick calibrate`, or set `WINDOW_CLASS` / `WINDOW_NAME` to what
+  `xdotool search --name .` shows.
+- **Clicks stop when you alt-tab away from the game**: this can happen when
+  running without Gamescope because the game may reject synthetic events while
+  unfocused. Run the game through Gamescope for the recommended background-click
+  behavior.
 - **Clicks land in the wrong place in-game**: use `foxclick capture` with the
   pointer over the desired location, then `foxclick click`. The ordinary `start`
   and `toggle` commands continue to use the current pointer position.

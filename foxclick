@@ -1,16 +1,13 @@
 #!/usr/bin/env bash
-# foxclick - focus-independent autoclicker for an XWayland game (Foxhole).
+# foxclick - autoclicker for an XWayland game (Foxhole).
 #
 # Sends synthetic button events straight to the game's X window with
 #   xdotool click --window <id>
-# so building/digging keeps going while your real keyboard and mouse are on
-# another window or monitor. The events go to that one window by id, not to
-# whatever is focused, so they don't follow your focus and don't steal it.
+# targeting that window by id. Whether an unfocused game accepts them depends
+# on the game and XWayland setup. Gamescope's nested display is recommended for
+# reliable clicking while you use another window or monitor.
 #
-# No gamescope, no nested display - the game runs as an ordinary (XWayland)
-# window on your Wayland compositor.
-#
-# Requires: xdotool, and the game running as a normal window (NOT via gamescope).
+# Requires: xdotool, and the game visible on an accessible X display.
 #
 # Usage:
 #   foxclick toggle      start if stopped, stop if running   (bind this to a hotkey)
@@ -173,7 +170,8 @@ run() {
     # xdotool exits non-zero when the target window is gone (BadWindow). That is
     # the only failure worth reacting to, and checking the return of the click
     # itself means no extra X round-trips per tick (which contend with an
-    # XWayland client that has focus).
+    # XWayland client that has focus). Gamescope is recommended when
+    # background clicks must continue reliably.
     poke() {  # poke <click|down|up>
         local rc
         if [ -n "$target_x" ] && ! xdotool mousemove --window "$wid" "$target_x" "$target_y" >>"$LOG" 2>&1; then
@@ -257,7 +255,7 @@ start() {
     is_running && { note "already running"; return 0; }
     command -v xdotool >/dev/null 2>&1 || die "xdotool not installed  ->  sudo pacman -S xdotool"
     local target_mode="${1:-0}" disp wid rest target_x="" target_y="" width height
-    rest="$(find_game)" || die "game window not found - is $WINDOW_CLASS running as a normal window? (not gamescope)"
+    rest="$(find_game)" || die "game window not found - is $WINDOW_CLASS visible on an accessible X display?"
     disp="${rest%% *}"
     wid="${rest##* }"
     if [ "$target_mode" = 1 ]; then
@@ -285,7 +283,7 @@ start() {
 capture() {
     command -v xdotool >/dev/null 2>&1 || die "xdotool not installed  ->  sudo pacman -S xdotool"
     local rest disp wid geometry pointer win_x win_y width height pointer_x pointer_y target_x target_y
-    rest="$(find_game)" || die "game window not found - is $WINDOW_CLASS running as a normal window? (not gamescope)"
+    rest="$(find_game)" || die "game window not found - is $WINDOW_CLASS visible on an accessible X display?"
     disp="${rest%% *}"
     wid="${rest##* }"
     geometry="$(DISPLAY="$disp" xdotool getwindowgeometry --shell "$wid" 2>/dev/null)" ||
@@ -345,7 +343,7 @@ calibrate() {
     echo "config             : class='$WINDOW_CLASS' name='${WINDOW_NAME:-any}' button=$BUTTON mode=$MODE"
     echo "candidate displays : $(candidate_displays | tr '\n' ' ')"
     local rest disp wid
-    rest="$(find_game)" || die "game window not found - is $WINDOW_CLASS running as a normal window? (not gamescope)"
+    rest="$(find_game)" || die "game window not found - is $WINDOW_CLASS visible on an accessible X display?"
     disp="${rest%% *}"; wid="${rest##* }"
     echo
     echo "chosen display     : $disp"
