@@ -122,8 +122,15 @@ interval() {
 # The background worker. Not called directly by the user.
 run() {
     local disp="$1" wid="$2" start held=0 fails=0 tick=0
+
     export DISPLAY="$disp"
-    unset XAUTHORITY 2>/dev/null || true   # local Xwayland connection needs no cookie
+
+    # Preserve the X11 authentication cookie inherited from the session.
+    # Do not unset XAUTHORITY.
+    if [ -n "${XAUTHORITY:-}" ] && [ -f "$XAUTHORITY" ]; then
+        export XAUTHORITY
+    fi
+
     start="$(date +%s)"
     : >"$LOG"
     log "worker start  display=$disp wid=$wid mode=$MODE button=$BUTTON cps=$CPS class=$WINDOW_CLASS"
