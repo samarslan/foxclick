@@ -11,6 +11,11 @@ JITTER=15         # +/- percent random variation on the interval (0 = perfectly 
 
 BUTTON=1          # 1=left  2=middle  3=right
 
+# Position-targeted clicking:
+# Press the capture shortcut with the pointer over the game, then click shortcut
+# to start at that saved position. The normal stop/toggle shortcut stops it.
+# These clicks use MODE, CPS, JITTER, BUTTON, REASSERT and CLEARMODS below.
+
 # hold mode: re-send the press every tick so a dropped press recovers.
 # Set 0 for a single clean press.
 REASSERT=1

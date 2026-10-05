@@ -15,6 +15,8 @@
 # Usage:
 #   foxclick toggle      start if stopped, stop if running   (bind this to a hotkey)
 #   foxclick start | stop | status
+#   foxclick capture     save the current pointer position in the game window
+#   foxclick click       start clicking at the saved position
 #   foxclick calibrate   show the detected game window + fire 5 test clicks
 #   foxclick log         print the diagnostic log from the last run
 #
@@ -27,6 +29,7 @@ CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/foxclick/config"
 RUNDIR="${XDG_RUNTIME_DIR:-/tmp}"
 PIDFILE="$RUNDIR/foxclick.pid"
 LOG="$RUNDIR/foxclick.log"
+TARGET_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/foxclick/target"
 
 # ---- defaults (override in $CONFIG) ----
 MODE=hold                     # hold = press and hold the button;  click = repeated clicks
@@ -121,7 +124,8 @@ interval() {
 
 # The background worker. Not called directly by the user.
 run() {
-    local disp="$1" wid="$2" start held=0 fails=0 tick=0
+    local disp="$1" wid="$2" target_x="${3:-}" target_y="${4:-}"
+    local start held=0 fails=0 tick=0
 
     export DISPLAY="$disp"
 
@@ -172,6 +176,10 @@ run() {
     # XWayland client that has focus).
     poke() {  # poke <click|down|up>
         local rc
+        if [ -n "$target_x" ] && ! xdotool mousemove --window "$wid" "$target_x" "$target_y" >>"$LOG" 2>&1; then
+            fails=$((fails + 1))
+            return 1
+        fi
         case "$1" in
             click) xdotool click     --window "$wid" "$BUTTON" >>"$LOG" 2>&1 ;;
             down)  xdotool mousedown  --window "$wid" "$BUTTON" >>"$LOG" 2>&1 ;;
@@ -248,18 +256,58 @@ run() {
 start() {
     is_running && { note "already running"; return 0; }
     command -v xdotool >/dev/null 2>&1 || die "xdotool not installed  ->  sudo pacman -S xdotool"
-    local disp wid rest
+    local target_mode="${1:-0}" disp wid rest target_x="" target_y="" width height
     rest="$(find_game)" || die "game window not found - is $WINDOW_CLASS running as a normal window? (not gamescope)"
     disp="${rest%% *}"
     wid="${rest##* }"
-    setsid -f "$SELF" __run "$disp" "$wid" </dev/null >/dev/null 2>&1
+    if [ "$target_mode" = 1 ]; then
+        [ -f "$TARGET_FILE" ] || die "no position saved - move the pointer over the game and run foxclick capture"
+        read -r target_x target_y <"$TARGET_FILE"
+        [[ "$target_x" =~ ^[0-9]+$ && "$target_y" =~ ^[0-9]+$ ]] || die "saved position is invalid - run foxclick capture again"
+        unset X Y WIDTH HEIGHT
+        eval "$(DISPLAY="$disp" xdotool getwindowgeometry --shell "$wid" 2>/dev/null)" ||
+            die "could not read game window geometry"
+        width="${WIDTH:-0}"; height="${HEIGHT:-0}"
+        [ "$target_x" -lt "$width" ] && [ "$target_y" -lt "$height" ] ||
+            die "saved position is outside the game window - run foxclick capture again"
+    fi
+    setsid -f "$SELF" __run "$disp" "$wid" "$target_x" "$target_y" </dev/null >/dev/null 2>&1
     sleep 0.4
     if is_running; then
-        note "ON - $MODE, button $BUTTON, window $wid on $disp"
+        [ "$target_mode" = 1 ] && note "ON - $MODE at saved position, button $BUTTON, window $wid on $disp" ||
+            note "ON - $MODE, button $BUTTON, window $wid on $disp"
     else
         note "failed to start - run: foxclick log"
         exit 1
     fi
+}
+
+capture() {
+    command -v xdotool >/dev/null 2>&1 || die "xdotool not installed  ->  sudo pacman -S xdotool"
+    local rest disp wid geometry pointer win_x win_y width height pointer_x pointer_y target_x target_y
+    rest="$(find_game)" || die "game window not found - is $WINDOW_CLASS running as a normal window? (not gamescope)"
+    disp="${rest%% *}"
+    wid="${rest##* }"
+    geometry="$(DISPLAY="$disp" xdotool getwindowgeometry --shell "$wid" 2>/dev/null)" ||
+        die "could not read game window geometry"
+    pointer="$(DISPLAY="$disp" xdotool getmouselocation --shell 2>/dev/null)" ||
+        die "could not read pointer position"
+    unset X Y WIDTH HEIGHT
+    eval "$geometry"
+    win_x="${X:-0}"; win_y="${Y:-0}"; width="${WIDTH:-0}"; height="${HEIGHT:-0}"
+    unset X Y WINDOW
+    eval "$pointer"
+    pointer_x="${X:-}"; pointer_y="${Y:-}"
+    [[ "$pointer_x" =~ ^-?[0-9]+$ && "$pointer_y" =~ ^-?[0-9]+$ ]] ||
+        die "could not read pointer coordinates"
+    target_x=$((pointer_x - win_x)); target_y=$((pointer_y - win_y))
+    [ "$target_x" -ge 0 ] && [ "$target_y" -ge 0 ] &&
+        [ "$target_x" -lt "$width" ] && [ "$target_y" -lt "$height" ] ||
+        die "pointer is not over the game window - position it in-game and try again"
+    mkdir -p "$(dirname "$TARGET_FILE")"
+    printf '%s %s\n' "$target_x" "$target_y" >"$TARGET_FILE"
+    chmod 600 "$TARGET_FILE"
+    note "saved position ($target_x, $target_y) in game window"
 }
 
 stop() {
@@ -314,14 +362,16 @@ calibrate() {
 case "${1:-toggle}" in
     toggle)     is_running && stop || start ;;
     start)      start ;;
+    capture)    capture ;;
+    click)      start 1 ;;
     stop)       stop ;;
     status)     status ;;
     calibrate)  calibrate ;;
     log)        [ -f "$LOG" ] && cat "$LOG" || echo "no log yet ($LOG)" ;;
-    __run)      shift; run "${1:-}" "${2:-}" ;;
+    __run)      shift; run "${1:-}" "${2:-}" "${3:-}" "${4:-}" ;;
     -h|--help|help)
         sed -n '2,21p' "$SELF" | sed 's/^# \{0,1\}//' ;;
     *)
-        echo "usage: foxclick [toggle|start|stop|status|calibrate|log]" >&2
+        echo "usage: foxclick [toggle|start|capture|click|stop|status|calibrate|log]" >&2
         exit 2 ;;
 esac

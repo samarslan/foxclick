@@ -4,6 +4,7 @@
 #   ./install.sh                 install + register Meta+X (KDE)
 #   FOXCLICK_KEY="Meta+Shift+C" ./install.sh
 #   FOXCLICK_KEY=none ./install.sh   skip the global shortcut
+#   FOXCLICK_CAPTURE_KEY=Meta+G FOXCLICK_CLICK_KEY=Meta+C ./install.sh
 #
 # Everything lands under $HOME; no root needed.
 set -euo pipefail
@@ -13,6 +14,8 @@ bin_dir="${XDG_BIN_HOME:-$HOME/.local/bin}"
 cfg_dir="${XDG_CONFIG_HOME:-$HOME/.config}/foxclick"
 app_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 key="${FOXCLICK_KEY:-Meta+X}"
+capture_key="${FOXCLICK_CAPTURE_KEY:-Meta+G}"
+click_key="${FOXCLICK_CLICK_KEY:-Meta+C}"
 
 echo "installing foxclick"
 mkdir -p "$bin_dir" "$cfg_dir" "$app_dir"
@@ -27,35 +30,37 @@ else
     echo "  $cfg_dir/config"
 fi
 
-cat > "$app_dir/foxclick.desktop" <<EOF
+write_shortcut() {
+    local file="$1" command="$2" name="$3"
+    cat > "$app_dir/$file" <<EOF
 [Desktop Entry]
-Exec=$bin_dir/foxclick toggle
-Name=Foxclick Toggle
+Exec=$bin_dir/foxclick $command
+Name=$name
 NoDisplay=true
 StartupNotify=false
 Type=Application
 X-KDE-GlobalAccel-CommandShortcut=true
 EOF
-echo "  $app_dir/foxclick.desktop"
+    echo "  $app_dir/$file"
+}
+
+write_shortcut foxclick.desktop toggle "Foxclick Toggle"
+write_shortcut foxclick-capture.desktop capture "Foxclick Capture Position"
+write_shortcut foxclick-click.desktop click "Foxclick Click Saved Position"
 
 case ":$PATH:" in
     *":$bin_dir:"*) ;;
     *) echo "  note: $bin_dir is not on your PATH" ;;
 esac
 
-# ---- KDE global shortcut (best effort) ----
-if [ "$key" = none ] || [ "$key" = None ]; then
-    echo "skipping global shortcut (FOXCLICK_KEY=none)"
-    exit 0
-fi
+# ---- KDE global shortcuts (best effort) ----
 if ! command -v kwriteconfig6 >/dev/null 2>&1; then
     echo "not KDE Plasma - skipping automatic global shortcut."
-    echo "Bind '$bin_dir/foxclick toggle' to a key in your compositor/DE config."
+    echo "Bind '$bin_dir/foxclick toggle', '$bin_dir/foxclick capture', and"
+    echo "'$bin_dir/foxclick click' to keys in your compositor/DE config."
     echo "See the 'Global shortcut' section of the README for per-environment examples."
     exit 0
 fi
-
-# Translate a "Meta+Shift+X" style string into a Qt key-combination integer.
 qt_keycode() {
     local spec="$1" total=0 part key
     IFS='+' read -ra parts <<< "$spec"
@@ -74,18 +79,25 @@ qt_keycode() {
     echo "$total"
 }
 
-kwriteconfig6 --file kglobalshortcutsrc --group services --group foxclick.desktop \
-    --key _launch "$key"
-
-code="$(qt_keycode "$key" 2>/dev/null || true)"
-if [ -n "$code" ] && command -v gdbus >/dev/null 2>&1; then
-    aid="['foxclick.desktop', '_launch', 'Foxclick Toggle', 'Launch']"
-    gdbus call --session --dest org.kde.kglobalaccel --object-path /kglobalaccel \
-        --method org.kde.KGlobalAccel.doRegister "$aid" >/dev/null 2>&1 || true
-    if gdbus call --session --dest org.kde.kglobalaccel --object-path /kglobalaccel \
-        --method org.kde.KGlobalAccel.setShortcut "$aid" "[$code]" 2 >/dev/null 2>&1; then
-        echo "global shortcut: $key  (active now)"
-        exit 0
+register_shortcut() {
+    local file="$1" name="$2" shortcut="$3" code aid
+    case "${shortcut,,}" in none) echo "global shortcut: $name skipped"; return 0 ;; esac
+    kwriteconfig6 --file kglobalshortcutsrc --group services --group "$file" \
+        --key _launch "$shortcut"
+    code="$(qt_keycode "$shortcut" 2>/dev/null || true)"
+    if [ -n "$code" ] && command -v gdbus >/dev/null 2>&1; then
+        aid="['$file', '_launch', '$name', 'Launch']"
+        gdbus call --session --dest org.kde.kglobalaccel --object-path /kglobalaccel \
+            --method org.kde.KGlobalAccel.doRegister "$aid" >/dev/null 2>&1 || true
+        if gdbus call --session --dest org.kde.kglobalaccel --object-path /kglobalaccel \
+            --method org.kde.KGlobalAccel.setShortcut "$aid" "[$code]" 2 >/dev/null 2>&1; then
+            echo "global shortcut: $shortcut for $name (active now)"
+            return 0
+        fi
     fi
-fi
-echo "global shortcut: $key  (written; active after next login)"
+    echo "global shortcut: $shortcut for $name (written; active after next login)"
+}
+
+register_shortcut foxclick.desktop "Foxclick Toggle" "$key"
+register_shortcut foxclick-capture.desktop "Foxclick Capture Position" "$capture_key"
+register_shortcut foxclick-click.desktop "Foxclick Click Saved Position" "$click_key"

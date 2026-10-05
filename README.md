@@ -10,8 +10,10 @@ the machine while the autoclicker runs.
 
 `foxclick` sends its clicks straight to **one specific X window, addressed by
 id** (`xdotool --window`). The events go to that window and nowhere else,
-regardless of what has focus, and without *taking* focus. Park the game on one
-monitor, work on the other.
+regardless of what has focus. Regular clicking does not move the pointer;
+position-targeted clicking moves it to the saved location before each click.
+Whether pointer movement changes focus depends on the compositor's focus policy.
+Park the game on one monitor, work on the other.
 
 It was written for repetitive hold-to-work actions in
 [Foxhole](https://store.steampowered.com/app/505460/Foxhole/) (building, digging),
@@ -36,9 +38,9 @@ but nothing in it is Foxhole-specific — point `WINDOW_CLASS` at any XWayland g
 ```
 
 `xdotool click --window <id>` delivers a synthetic `ButtonPress`/`ButtonRelease`
-via `XSendEvent` to that exact window. It doesn't move your pointer, doesn't
-change focus, and can't reach any other window — a click sent to the game's
-window id is simply not visible to Discord, the browser, or Steam.
+via `XSendEvent` to that exact window and can't reach any other window. Regular
+clicking doesn't move your pointer; position-targeted clicking moves it to the
+saved location in the game window before each click.
 
 foxclick finds the game window by X class (and optionally name), picking the
 largest matching window so it ignores the game's tiny helper/IME/tooltip windows.
@@ -63,33 +65,39 @@ cd foxclick
 ./install.sh
 ```
 
+The installer assigns KDE shortcuts for toggling (`Meta+X`), capturing the
+pointer position (`Meta+G`), and starting at that saved position (`Meta+C`).
+Override them with `FOXCLICK_KEY`, `FOXCLICK_CAPTURE_KEY`, and
+`FOXCLICK_CLICK_KEY`; set an individual variable to `none` to skip its shortcut.
+On other desktops, bind the commands manually as described below.
+
 `install.sh` copies:
 
 | file | destination |
 |---|---|
 | `foxclick` | `~/.local/bin/foxclick` |
 | `config.example` | `~/.config/foxclick/config` (only if missing) |
-| generated `.desktop` | `~/.local/share/applications/foxclick.desktop` |
+| generated `.desktop` entries | `~/.local/share/applications/foxclick*.desktop` |
 
-On KDE it also registers a global shortcut (Meta+X). Everywhere else you bind the
-key yourself — see below.
+On KDE it also registers global shortcuts. Everywhere else you bind the keys
+yourself — see below.
 
 ## Global shortcut
 
-You want `foxclick toggle` on a single key so you can arm/disarm it without
-leaving the game.
+Bind `foxclick toggle` to stop the regular autoclicker and `foxclick capture`
+and `foxclick click` to select and use a screen position while in-game.
 
 | environment | where |
 |---|---|
-| Hyprland | `bind = SUPER, A, exec, foxclick toggle` (Omarchy: `o.bind` in `~/.config/hypr/bindings.lua`) |
-| KDE Plasma | `install.sh` registers Meta+X; change it in *System Settings → Shortcuts* |
-| GNOME | Settings → Keyboard → *Custom Shortcuts*, command `foxclick toggle` |
-| Sway / i3 | `bindsym $mod+a exec foxclick toggle` |
-| niri | `Mod+A { spawn "foxclick" "toggle"; }` |
+| Hyprland | `bind = SUPER, A, exec, foxclick toggle`; `bind = SUPER, G, exec, foxclick capture`; `bind = SUPER, C, exec, foxclick click` (Omarchy: `o.bind` in `~/.config/hypr/bindings.lua`) |
+| KDE Plasma | `install.sh` registers Meta+X, Meta+G, and Meta+C; change them in *System Settings → Shortcuts* |
+| GNOME | Settings → Keyboard → *Custom Shortcuts*, commands `foxclick toggle`, `foxclick capture`, and `foxclick click` |
+| Sway / i3 | `bindsym $mod+a exec foxclick toggle`; `bindsym $mod+g exec foxclick capture`; `bindsym $mod+c exec foxclick click` |
+| niri | `Mod+A { spawn "foxclick" "toggle"; }`; `Mod+G { spawn "foxclick" "capture"; }`; `Mod+C { spawn "foxclick" "click"; }` |
 
-Pick a key the game doesn't use. The toggle needs to reach your compositor while
-the game is focused — `Super`/`Meta` combos usually do; if not, run
-`foxclick toggle` from a terminal on your other monitor.
+Pick keys the game doesn't use. The shortcuts need to reach your compositor
+while the game is focused — `Super`/`Meta` combos usually do; if not, run the
+commands from a terminal on your other monitor.
 
 ## Set up the game
 
@@ -109,12 +117,17 @@ foxclick calibrate   # show the detected game window + fire 5 test clicks
 foxclick start       # start
 foxclick stop        # stop
 foxclick toggle      # start if stopped, stop if running  (bind this to a key)
+foxclick capture     # save the current pointer position relative to the game window
+foxclick click       # start the configured click/hold action at that saved position
 foxclick status      # running state + last-run log
 foxclick log         # just the diagnostic log
 ```
 
-Typical flow: aim at the spot in-game, hit your toggle key, tab away to do
-something else, hit it again when the task is done.
+Typical flow: put the pointer over the desired spot in-game and press the
+capture key; press the click key to start the configured action at that spot.
+The click action honors `MODE`, `CPS`, `JITTER`, `BUTTON`, `REASSERT`, and
+`CLEARMODS`. Press the toggle/stop key to stop it. The position is saved relative
+to the game window, so it remains selected if that window moves.
 
 foxclick auto-stops if the game window disappears.
 
@@ -128,6 +141,7 @@ foxclick auto-stops if the game window disappears.
 | `CPS` | `12` | clicks per second (click mode) |
 | `JITTER` | `15` | ± percent random variation on the interval; `0` = perfectly steady |
 | `BUTTON` | `1` | X button — `1` left, `2` middle, `3` right |
+| Position target | — | `capture` saves the pointer position within the game window; `click` starts the normal configured action at that position |
 | `REASSERT` | `1` | hold mode: re-send the press every tick so a dropped press recovers |
 | `WINDOW_CLASS` | `steam_app_505460` | X class of the game window (Foxhole = its Steam appid) |
 | `WINDOW_NAME` | *(empty)* | optional extra filter: the window name must match this regex |
@@ -135,7 +149,7 @@ foxclick auto-stops if the game window disappears.
 | `CLEARMODS` | `0` | send a modifier-release to the game window before each click — enable only if a key you physically hold (Alt for push-to-talk) is turning clicks into modified clicks in-game |
 | `MAX_SECONDS` | `0` | safety auto-stop after N seconds; `0` = no limit |
 
-Changes take effect on the next `start`/`toggle` — there's no daemon.
+Changes take effect on the next `start`/`toggle`/`click` — there's no daemon.
 
 ## Troubleshooting
 
@@ -150,9 +164,9 @@ Changes take effect on the next `start`/`toggle` — there's no daemon.
   Clicks resume as soon as you focus a native Wayland window (browser, terminal)
   or the game. Native Wayland windows don't cause this. Since Discord
   push-to-talk is global you rarely need Discord focused anyway.
-- **Clicks land in the wrong place in-game**: aim in-game *before* you hit the
-  toggle — the game keeps acting at its last cursor position while you're tabbed
-  away. In `hold` mode this is usually a non-issue for build/dig actions.
+- **Clicks land in the wrong place in-game**: use `foxclick capture` with the
+  pointer over the desired location, then `foxclick click`. The ordinary `start`
+  and `toggle` commands continue to use the current pointer position.
 - **One click then nothing** in `hold` mode: keep `REASSERT=1` (default), or use
   `MODE=click`.
 - **Right-click (or another button) dies in-game after using foxclick**: `stop`
