@@ -4,7 +4,7 @@
 #   ./install.sh                 install + register Meta+X (KDE)
 #   FOXCLICK_KEY="Meta+Shift+C" ./install.sh
 #   FOXCLICK_KEY=none ./install.sh   skip the global shortcut
-#   FOXCLICK_CAPTURE_KEY=Meta+G FOXCLICK_CLICK_KEY=Meta+C ./install.sh
+#   FOXCLICK_CAPTURE_KEY=Meta+H FOXCLICK_CLICK_KEY=Meta+C ./install.sh
 #
 # Everything lands under $HOME; no root needed.
 set -euo pipefail
@@ -14,7 +14,7 @@ bin_dir="${XDG_BIN_HOME:-$HOME/.local/bin}"
 cfg_dir="${XDG_CONFIG_HOME:-$HOME/.config}/foxclick"
 app_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 key="${FOXCLICK_KEY:-Meta+X}"
-capture_key="${FOXCLICK_CAPTURE_KEY:-Meta+G}"
+capture_key="${FOXCLICK_CAPTURE_KEY:-Meta+H}"
 click_key="${FOXCLICK_CLICK_KEY:-Meta+C}"
 
 echo "installing foxclick"

@@ -29,7 +29,7 @@ LOG="$RUNDIR/foxclick.log"
 TARGET_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/foxclick/target"
 
 # ---- defaults (override in $CONFIG) ----
-MODE=hold                     # hold = press and hold the button;  click = repeated clicks
+MODE=click                    # hold = press and hold the button;  click = repeated clicks
 CPS=12                        # clicks per second (click mode only)
 JITTER=15                     # +/- percent random variation on the interval (click mode only)
 BUTTON=1                      # X button: 1=left, 2=middle, 3=right

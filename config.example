@@ -3,7 +3,7 @@
 
 # hold  = press and hold the button down  (building, digging in Foxhole)
 # click = repeated click events
-MODE=hold
+MODE=click
 
 # click mode:
 CPS=12            # clicks per second

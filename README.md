@@ -72,7 +72,7 @@ cd foxclick
 ```
 
 The installer assigns KDE shortcuts for toggling (`Meta+X`), capturing the
-pointer position (`Meta+G`), and starting at that saved position (`Meta+C`).
+pointer position (`Meta+H`), and starting at that saved position (`Meta+C`).
 Override them with `FOXCLICK_KEY`, `FOXCLICK_CAPTURE_KEY`, and
 `FOXCLICK_CLICK_KEY`; set an individual variable to `none` to skip its shortcut.
 On other desktops, bind the commands manually as described below.
@@ -95,11 +95,11 @@ and `foxclick click` to select and use a screen position while in-game.
 
 | environment | where |
 |---|---|
-| Hyprland | `bind = SUPER, A, exec, foxclick toggle`; `bind = SUPER, G, exec, foxclick capture`; `bind = SUPER, C, exec, foxclick click` (Omarchy: `o.bind` in `~/.config/hypr/bindings.lua`) |
-| KDE Plasma | `install.sh` registers Meta+X, Meta+G, and Meta+C; change them in *System Settings → Shortcuts* |
+| Hyprland | `bind = SUPER, A, exec, foxclick toggle`; `bind = SUPER, H, exec, foxclick capture`; `bind = SUPER, C, exec, foxclick click` (Omarchy: `o.bind` in `~/.config/hypr/bindings.lua`) |
+| KDE Plasma | `install.sh` registers Meta+X, Meta+H, and Meta+C; change them in *System Settings → Shortcuts* |
 | GNOME | Settings → Keyboard → *Custom Shortcuts*, commands `foxclick toggle`, `foxclick capture`, and `foxclick click` |
-| Sway / i3 | `bindsym $mod+a exec foxclick toggle`; `bindsym $mod+g exec foxclick capture`; `bindsym $mod+c exec foxclick click` |
-| niri | `Mod+A { spawn "foxclick" "toggle"; }`; `Mod+G { spawn "foxclick" "capture"; }`; `Mod+C { spawn "foxclick" "click"; }` |
+| Sway / i3 | `bindsym $mod+a exec foxclick toggle`; `bindsym $mod+h exec foxclick capture`; `bindsym $mod+c exec foxclick click` |
+| niri | `Mod+A { spawn "foxclick" "toggle"; }`; `Mod+H { spawn "foxclick" "capture"; }`; `Mod+C { spawn "foxclick" "click"; }` |
 
 Pick keys the game doesn't use. The shortcuts need to reach your compositor
 while the game is focused — `Super`/`Meta` combos usually do; if not, run the
@@ -146,7 +146,7 @@ foxclick auto-stops if the game window disappears.
 
 | key | default | meaning |
 |---|---|---|
-| `MODE` | `hold` | `hold` = press and hold the button; `click` = repeated click events |
+| `MODE` | `click` | `click` = repeated click events; `hold` = press and hold the button |
 | `CPS` | `12` | clicks per second (click mode) |
 | `JITTER` | `15` | ± percent random variation on the interval; `0` = perfectly steady |
 | `BUTTON` | `1` | X button — `1` left, `2` middle, `3` right |
